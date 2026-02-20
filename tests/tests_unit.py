@@ -40,7 +40,7 @@ def test_validate_lead_data_invalid_email():
     is_valid, errors, _ = validate_lead_data(bad_data)
     assert is_valid is False
     assert 'email' in errors
-    assert 'fname' in errors # Also testing min length
+    assert 'fname' in errors 
 
 
 @patch('function_app.get_cosmos_client')
@@ -48,7 +48,7 @@ def test_validate_lead_data_invalid_email():
 def test_lead_intake_success_new_lead(mock_publish, mock_get_db, valid_lead_payload):
     """Test the full successful path for a NEW lead."""
     
-    # 1. Setup Mock DB responses
+    # Setup Mock DB responses
     db = MagicMock()
     mock_get_db.return_value = db
     container = db.get_container_client.return_value

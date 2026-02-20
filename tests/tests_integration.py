@@ -39,7 +39,7 @@ def test_create_lead():
     # Data for the test
     email = f"test_{uuid.uuid4().hex}@example.com"
     
-    # 1. Create the lead
+    # Create the lead
     lead = create_lead(db, "Test", "User", email, "5551234567", True, "Integration test")
     assert lead['id'] is not None
     
@@ -47,7 +47,6 @@ def test_get_actual_dealer_details():
     """
     Fetches a real dealership from Cosmos DB and prints the details.
     """
-    # Initialize the db client
     db = get_cosmos_client()
     
     target_dealer_id = "dealer_8c1d9f22aa" 
