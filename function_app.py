@@ -46,7 +46,7 @@ def get_cosmos_client():
     if not endpoint or not key:
         raise ValueError("COSMOS_ENDPOINT and COSMOS_KEY must be set")
     
-    client = CosmosClient(endpoint, key)
+    client = CosmosClient(endpoint, key, connection_verify=False)
     database = client.get_database_client(database_name)
     
     return database
