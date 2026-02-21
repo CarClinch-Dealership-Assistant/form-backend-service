@@ -580,3 +580,53 @@ def health_check(req: func.HttpRequest) -> func.HttpResponse:
         status_code=200,
         headers={'Content-Type': 'application/json'}
     )
+
+# alice: additional endpoint to retrieve vehicles for frontend dropdown
+@app.route(
+    route="vehicles",
+    methods=["GET", "OPTIONS"],
+    auth_level=func.AuthLevel.ANONYMOUS
+)
+def get_vehicles(req: func.HttpRequest) -> func.HttpResponse:
+    if req.method == 'OPTIONS':
+        return func.HttpResponse(
+            status_code=200,
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'
+            }
+        )
+    
+    try:
+        database = get_cosmos_client()
+        container = database.get_container_client('vehicles')
+        
+        # filter by dealerId via query param; maybe we can add this later but not that important for this stae
+        dealer_id = req.params.get('dealerId')
+        
+        if dealer_id:
+            query = "SELECT v.id, v.year, v.make, v.model, v.trim, v.mileage, v.status FROM vehicles v WHERE v.dealerId = @dealerId"
+            parameters = [{"name": "@dealerId", "value": dealer_id}]
+        else:
+            query = "SELECT v.id, v.year, v.make, v.model, v.trim, v.mileage, v.status FROM vehicles v"
+            parameters = []
+        
+        items = list(container.query_items(
+            query=query,
+            parameters=parameters,
+            enable_cross_partition_query=True
+        ))
+        
+        return func.HttpResponse(
+            body=json.dumps({'success': True, 'vehicles': items}),
+            status_code=200,
+            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+        )
+    
+    except Exception as e:
+        return func.HttpResponse(
+            body=json.dumps({'success': False, 'error': str(e)}),
+            status_code=500,
+            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+        )
