@@ -41,7 +41,7 @@ def get_cosmos_client():
     """
     endpoint = os.environ.get('COSMOS_ENDPOINT')
     key = os.environ.get('COSMOS_KEY')
-    database_name = os.environ.get('COSMOS_DATABASE', 'dealership')
+    database_name = os.environ.get('COSMOS_DATABASE', 'CarClinchDB')
     
     if not endpoint or not key:
         raise ValueError("COSMOS_ENDPOINT and COSMOS_KEY must be set")
