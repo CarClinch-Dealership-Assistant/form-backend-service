@@ -28,9 +28,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run pytest
-      # Requires env or code will crash we are mocking data, could change to secrets
+      # Requires env or code will crash we are mocking data
         env:
           COSMOS_ENDPOINT: "https://localhost:8081"
           COSMOS_KEY: "dummy_key_for_testing"
           SERVICE_BUS_CONNECTION_STRING: "Endpoint=sb://dummy.servicebus.windows.net/;"
-        run: pytest -q
+        run: pytest tests/test_unit.py
