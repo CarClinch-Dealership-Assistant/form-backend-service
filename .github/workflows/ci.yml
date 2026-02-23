@@ -33,4 +33,4 @@ jobs:
           COSMOS_ENDPOINT: "https://localhost:8081"
           COSMOS_KEY: "dummy_key_for_testing"
           SERVICE_BUS_CONNECTION_STRING: "Endpoint=sb://dummy.servicebus.windows.net/;"
-        run: pytest tests/test_unit.py
+        run: pytest tests/tests_unit.py
