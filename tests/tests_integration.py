@@ -27,7 +27,7 @@ def test_cosmos_connection_real():
     '''
     db = get_cosmos_client()
     
-    # Note: Change with valid email that exists in your Cosmos DB for testing
+    # Replace with valid email
     result = check_lead_by_email(db, "desmond@gmail.com")
     
     assert result is None or isinstance(result, dict)
