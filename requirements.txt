@@ -3,3 +3,7 @@
 # azure-monitor-opentelemetry
 
 azure-functions
+azure-cosmos
+azure-servicebus
+pytest
+pytest-mock

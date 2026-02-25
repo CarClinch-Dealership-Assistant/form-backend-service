@@ -3,7 +3,7 @@ CarClinch Dealership Assistant - Cosmos DB Version
 Route: POST /api/lead
 
 COMPLETE WORKFLOW:
-1. Receive form: {vehicleId, fname, lname, email, phone, wants_email, notes}
+1. Receive form: {vehicleId, fname, lname, email, phone, notes}
 2. Check if email exists in leads container
    - If exists: Use existing lead_id
    - If not: Create new lead with UUID
@@ -41,12 +41,12 @@ def get_cosmos_client():
     """
     endpoint = os.environ.get('COSMOS_ENDPOINT')
     key = os.environ.get('COSMOS_KEY')
-    database_name = os.environ.get('COSMOS_DATABASE', 'dealership')
+    database_name = os.environ.get('COSMOS_DATABASE', 'CarClinchDB')
     
     if not endpoint or not key:
         raise ValueError("COSMOS_ENDPOINT and COSMOS_KEY must be set")
     
-    client = CosmosClient(endpoint, key)
+    client = CosmosClient(endpoint, key, connection_verify=False)
     database = client.get_database_client(database_name)
     
     return database
@@ -85,7 +85,7 @@ def check_lead_by_email(database, email):
         raise
 
 
-def create_lead(database, fname, lname, email, phone, wants_email, notes):
+def create_lead(database, fname, lname, email, phone, notes):
     """
     Create a new lead document with UUID
     """
@@ -102,7 +102,6 @@ def create_lead(database, fname, lname, email, phone, wants_email, notes):
             "email": email.lower(),
             "phone": phone,
             "status": 0,  # 0 = new
-            "wants_email": wants_email,
             "notes": notes,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
@@ -277,10 +276,6 @@ def validate_lead_data(data):
     notes = sanitize_string(data.get('notes'), max_length=5000)
     sanitized['notes'] = notes
     
-    # Wants Email
-    wants_email = data.get('wants_email')
-    sanitized['wants_email'] = bool(wants_email) if isinstance(wants_email, bool) else str(wants_email).lower() in ['true', '1', 'yes']
-    
     is_valid = len(errors) == 0
     return (is_valid, errors, sanitized)
 
@@ -338,7 +333,6 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
         "lname": "Smith",
         "email": "alice@example.com",
         "phone": "555-307-8655",
-        "wants_email": true,
         "notes": "Interested in financing options"
     }
     
@@ -417,7 +411,6 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                 sanitized_data['lname'],
                 sanitized_data['email'],
                 sanitized_data['phone'],
-                sanitized_data['wants_email'],
                 sanitized_data['notes']
             )
         
@@ -480,7 +473,6 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                 "email": lead['email'],
                 "phone": lead['phone'],
                 "status": lead['status'],
-                "wants_email": lead['wants_email'],
                 "notes": lead.get('notes'),
                 "timestamp": lead['timestamp']
             },
@@ -580,3 +572,53 @@ def health_check(req: func.HttpRequest) -> func.HttpResponse:
         status_code=200,
         headers={'Content-Type': 'application/json'}
     )
+
+# alice: additional endpoint to retrieve vehicles for frontend dropdown
+@app.route(
+    route="vehicles",
+    methods=["GET", "OPTIONS"],
+    auth_level=func.AuthLevel.ANONYMOUS
+)
+def get_vehicles(req: func.HttpRequest) -> func.HttpResponse:
+    if req.method == 'OPTIONS':
+        return func.HttpResponse(
+            status_code=200,
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'
+            }
+        )
+    
+    try:
+        database = get_cosmos_client()
+        container = database.get_container_client('vehicles')
+        
+        # filter by dealerId via query param; maybe we can add this later but not that important for this stae
+        dealer_id = req.params.get('dealerId')
+        
+        if dealer_id:
+            query = "SELECT v.id, v.year, v.make, v.model, v.trim, v.mileage, v.status FROM vehicles v WHERE v.dealerId = @dealerId"
+            parameters = [{"name": "@dealerId", "value": dealer_id}]
+        else:
+            query = "SELECT v.id, v.year, v.make, v.model, v.trim, v.mileage, v.status FROM vehicles v"
+            parameters = []
+        
+        items = list(container.query_items(
+            query=query,
+            parameters=parameters,
+            enable_cross_partition_query=True
+        ))
+        
+        return func.HttpResponse(
+            body=json.dumps({'success': True, 'vehicles': items}),
+            status_code=200,
+            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+        )
+    
+    except Exception as e:
+        return func.HttpResponse(
+            body=json.dumps({'success': False, 'error': str(e)}),
+            status_code=500,
+            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+        )

@@ -1,0 +1,36 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: Python application
+
+on:
+  push:
+    branches: "dev"
+  pull_request:
+    branches: "dev"
+    
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run pytest
+      # Requires env or code will crash even if we are mocking data 
+        env:
+          COSMOS_ENDPOINT: "https://localhost:8081"
+          COSMOS_KEY: "dummy_key_for_testing"
+          SERVICE_BUS_CONNECTION_STRING: "Endpoint=sb://dummy.servicebus.windows.net/;"
+        run: pytest tests/tests_unit.py
