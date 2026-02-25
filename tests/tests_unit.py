@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import azure.functions as func
 from datetime import datetime, timezone
 
-# Import the functions from your file (assuming it's named main.py)
+# Import the functions from your file
 from function_app import lead_intake, validate_lead_data
 
 # Create mock payload to simulate filling out webform
@@ -16,7 +16,6 @@ def valid_lead_payload():
         "lname": "Doe",
         "email": "john.doe@example.com",
         "phone": "555-012-3456",
-        "wants_email": True,
         "notes": "Testing lead"
     }
 
@@ -63,7 +62,7 @@ def test_lead_intake_success_new_lead(mock_publish, mock_get_db, valid_lead_payl
         mock_create_lead.return_value = {
             "id": "lead_123", "fname": "John", "lname": "Doe", 
             "email": "john.doe@example.com", "phone": "555", 
-            "status": 0, "wants_email": True, "timestamp": "now"
+            "status": 0, "timestamp": "now"
         }
         mock_get_veh.return_value = {"id": "veh_123", "dealerId": "deal_456", "make": "Ford"}
         mock_get_dealer.return_value = {"id": "deal_456", "name": "Test Motors"}
@@ -91,7 +90,7 @@ def test_lead_intake_vehicle_not_found(mock_get_db, valid_lead_payload):
     mock_get_db.return_value = db
     
     with patch('function_app.check_lead_by_email', return_value={"id": "existing_lead"}), \
-         patch('function_app.get_vehicle_by_id', return_value=None): # Vehicle not found
+         patch('function_app.get_vehicle_by_id', return_value=None):
         
         req = func.HttpRequest(
             method='POST',
