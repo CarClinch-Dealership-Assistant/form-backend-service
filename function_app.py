@@ -288,17 +288,19 @@ def validate_lead_data(data):
 
 def publish_to_service_bus(queue_name, message_data):
     try:
+        connection_string = os.environ.get('SB_CONNECTION_STRING')
         namespace = os.environ.get('SB_NAMESPACE')
 
-        if not namespace:
-            logger.warning("⚠️ SB_NAMESPACE not set")
-            return
+        if not connection_string and not namespace:
+            raise ValueError("Either SB_CONNECTION_STRING or SB_NAMESPACE must be set")
 
-        credential = DefaultAzureCredential()
-        servicebus_client = ServiceBusClient(
-            fully_qualified_namespace=namespace,
-            credential=credential
-        )
+        if connection_string:
+            servicebus_client = ServiceBusClient.from_connection_string(connection_string)
+        else:
+            servicebus_client = ServiceBusClient(
+                fully_qualified_namespace=namespace,
+                credential=DefaultAzureCredential()
+            )
 
         with servicebus_client:
             sender = servicebus_client.get_queue_sender(queue_name=queue_name)
@@ -312,7 +314,6 @@ def publish_to_service_bus(queue_name, message_data):
 
     except Exception as e:
         logger.error(f"❌ Failed to publish to Service Bus: {str(e)}")
-
 
 # ============================================
 # MAIN FUNCTION

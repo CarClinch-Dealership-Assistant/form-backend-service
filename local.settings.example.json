@@ -7,7 +7,7 @@
     "COSMOS_ENDPOINT": "",
     "COSMOS_CONNECTION_STRING": "",
     "COSMOS_DB_NAME": "",
-    
+    "SB_NAMESPACE": "",
     "SERVICE_BUS_CONNECTION_STRING": ""
   }
 }
