@@ -6,3 +6,5 @@ azure-functions
 azure-cosmos
 azure-servicebus
 azure-identity
+pytest
+pytest-mock

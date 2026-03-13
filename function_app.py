@@ -3,7 +3,7 @@ CarClinch Dealership Assistant - Cosmos DB Version
 Route: POST /api/lead
 
 COMPLETE WORKFLOW:
-1. Receive form: {vehicleId, fname, lname, email, phone, wants_email, notes}
+1. Receive form: {vehicleId, fname, lname, email, phone, notes}
 2. Check if email exists in leads container
    - If exists: Use existing lead_id
    - If not: Create new lead with UUID
@@ -84,7 +84,7 @@ def check_lead_by_email(database, email):
         raise
 
 
-def create_lead(database, fname, lname, email, phone, wants_email, notes):
+def create_lead(database, fname, lname, email, phone, notes):
     """
     Create a new lead document with UUID
     """
@@ -101,7 +101,6 @@ def create_lead(database, fname, lname, email, phone, wants_email, notes):
             "email": email.lower(),
             "phone": phone,
             "status": 0,  # 0 = new
-            "wants_email": wants_email,
             "notes": notes,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
@@ -276,10 +275,6 @@ def validate_lead_data(data):
     notes = sanitize_string(data.get('notes'), max_length=5000)
     sanitized['notes'] = notes
     
-    # Wants Email
-    wants_email = data.get('wants_email')
-    sanitized['wants_email'] = bool(wants_email) if isinstance(wants_email, bool) else str(wants_email).lower() in ['true', '1', 'yes']
-    
     is_valid = len(errors) == 0
     return (is_valid, errors, sanitized)
 
@@ -338,7 +333,6 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
         "lname": "Smith",
         "email": "alice@example.com",
         "phone": "555-307-8655",
-        "wants_email": true,
         "notes": "Interested in financing options"
     }
     
@@ -417,7 +411,6 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                 sanitized_data['lname'],
                 sanitized_data['email'],
                 sanitized_data['phone'],
-                sanitized_data['wants_email'],
                 sanitized_data['notes']
             )
         
@@ -480,7 +473,6 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                 "email": lead['email'],
                 "phone": lead['phone'],
                 "status": lead['status'],
-                "wants_email": lead['wants_email'],
                 "notes": lead.get('notes'),
                 "timestamp": lead['timestamp']
             },
