@@ -38,8 +38,11 @@ logger = logging.getLogger(__name__)
 
 def get_cosmos_client():
     connection_string = os.getenv("COSMOS_CONNECTION_STRING")
-    database_name = os.getenv("COSMOS_DATABASE", "CarClinchDB")
-    
+    database_name = os.getenv("COSMOS_DB_NAME")
+
+    if not database_name:
+        raise ValueError("COSMOS_DB_NAME must be set")
+
     if connection_string:
         client = CosmosClient.from_connection_string(connection_string)
     else:
@@ -47,7 +50,7 @@ def get_cosmos_client():
         if not endpoint:
             raise ValueError("Either COSMOS_CONNECTION_STRING or COSMOS_ENDPOINT must be set")
         client = CosmosClient(endpoint, credential=DefaultAzureCredential())
-    
+
     return client.get_database_client(database_name)
 
 
