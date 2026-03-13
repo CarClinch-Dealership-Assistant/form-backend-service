@@ -25,6 +25,7 @@ import uuid
 from datetime import datetime, timezone
 from azure.cosmos import CosmosClient, exceptions
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
+from azure.identity import DefaultAzureCredential
 
 app = func.FunctionApp()
 logging.basicConfig(level=logging.INFO)
@@ -36,19 +37,16 @@ logger = logging.getLogger(__name__)
 # ============================================
 
 def get_cosmos_client():
-    """
-    Initialize Cosmos DB client
-    """
     endpoint = os.environ.get('COSMOS_ENDPOINT')
-    key = os.environ.get('COSMOS_KEY')
     database_name = os.environ.get('COSMOS_DATABASE', 'CarClinchDB')
-    
-    if not endpoint or not key:
-        raise ValueError("COSMOS_ENDPOINT and COSMOS_KEY must be set")
-    
-    client = CosmosClient(endpoint, key, connection_verify=False)
+
+    if not endpoint:
+        raise ValueError("COSMOS_ENDPOINT must be set")
+
+    credential = DefaultAzureCredential()
+    client = CosmosClient(endpoint, credential=credential)
     database = client.get_database_client(database_name)
-    
+
     return database
 
 
@@ -285,28 +283,29 @@ def validate_lead_data(data):
 # ============================================
 
 def publish_to_service_bus(queue_name, message_data):
-    """Publish message to Service Bus queue"""
     try:
-        connection_string = os.environ.get('SERVICE_BUS_CONNECTION_STRING')
-        
-        if not connection_string:
-            logger.warning("⚠️ SERVICE_BUS_CONNECTION_STRING not set")
+        namespace = os.environ.get('SB_NAMESPACE')
+
+        if not namespace:
+            logger.warning("⚠️ SB_NAMESPACE not set")
             return
-        
-        servicebus_client = ServiceBusClient.from_connection_string(connection_string)
-        
+
+        credential = DefaultAzureCredential()
+        servicebus_client = ServiceBusClient(
+            fully_qualified_namespace=namespace,
+            credential=credential
+        )
+
         with servicebus_client:
             sender = servicebus_client.get_queue_sender(queue_name=queue_name)
-            
             with sender:
                 message = ServiceBusMessage(
                     body=json.dumps(message_data),
                     content_type="application/json"
                 )
-                
                 sender.send_messages(message)
                 logger.info(f"✅ Published to Service Bus queue '{queue_name}'")
-                
+
     except Exception as e:
         logger.error(f"❌ Failed to publish to Service Bus: {str(e)}")
 
