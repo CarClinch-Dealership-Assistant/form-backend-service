@@ -104,7 +104,7 @@ def create_lead(database, fname, lname, email, phone, notes):
             "email": email.lower(),
             "phone": phone,
             "status": 0,  # 0 = new
-            "notes": notes,
+            "notes": [{"text": notes, "timestamp": datetime.now(timezone.utc).isoformat()}] if notes else [],
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
@@ -117,7 +117,35 @@ def create_lead(database, fname, lname, email, phone, notes):
         logger.error(f"❌ Error creating lead: {str(e)}")
         raise
 
-
+def update_lead(database, lead_id, note):
+    try:
+        container = database.get_container_client('leads')
+        
+        # Read existing lead
+        lead = container.read_item(item=lead_id, partition_key=lead_id)
+        
+        # Update notes array
+        if 'notes' not in lead:
+            lead['notes'] = []
+        note_entry = {
+            "text": note,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        lead['notes'].append(note_entry)
+        
+        # Replace item in container
+        updated_lead = container.replace_item(item=lead_id, body=lead)
+        logger.info(f"✅ Updated lead: {lead_id} with note: {note}")
+        
+        return updated_lead
+        
+    except exceptions.CosmosResourceNotFoundError:
+        logger.warning(f"⚠️ Lead not found for update: {lead_id}")
+        return None
+    except exceptions.CosmosHttpResponseError as e:
+        logger.error(f"❌ Error updating lead: {str(e)}")
+        raise
 def get_vehicle_by_id(database, vehicle_id):
     """
     Query vehicle by ID
@@ -172,7 +200,7 @@ def get_dealership_by_id(database, dealer_id):
         raise
 
 
-def create_conversation(database, lead_id, vehicle_id):
+def create_conversation(database, lead_id, vehicle_id, dealership_id):
     """
     Create a new conversation document
     """
@@ -186,6 +214,7 @@ def create_conversation(database, lead_id, vehicle_id):
             "id": conv_id,
             "leadId": lead_id,
             "vehicleId": vehicle_id,
+            "dealerId": dealership_id,
             "status": 1,  # 1 = active
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
@@ -404,9 +433,11 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
         existing_lead = check_lead_by_email(database, sanitized_data['email'])
         
         if existing_lead:
-            # Use existing lead
             lead = existing_lead
-            logger.info(f"📧 Using existing lead: {lead['id']}")
+            if sanitized_data.get('notes'):
+                updated = update_lead(database, lead['id'], sanitized_data['notes'])
+                if updated:
+                    lead = updated
         else:
             # Create new lead
             lead = create_lead(
@@ -464,7 +495,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
         # ============================================
         # STEP 4: Create conversation
         # ============================================
-        conversation = create_conversation(database, lead['id'], vehicle['id'])
+        conversation = create_conversation(database, lead['id'], vehicle['id'], dealership['id'])
         
         # ============================================
         # STEP 5: Assemble message payload
@@ -477,7 +508,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                 "email": lead['email'],
                 "phone": lead['phone'],
                 "status": lead['status'],
-                "notes": lead.get('notes'),
+                "notes": lead.get('notes', [])[-1]['text'] if lead.get('notes') else "",
                 "timestamp": lead['timestamp']
             },
             "vehicle": {

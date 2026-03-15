@@ -8,6 +8,6 @@
     "COSMOS_CONNECTION_STRING": "",
     "COSMOS_DB_NAME": "",
     "SB_NAMESPACE": "",
-    "SERVICE_BUS_CONNECTION_STRING": ""
+    "SB_CONNECTION_STRING": ""
   }
 }
