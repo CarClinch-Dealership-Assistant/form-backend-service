@@ -5,9 +5,11 @@
     "FUNCTIONS_WORKER_RUNTIME": "python",
     
     "COSMOS_ENDPOINT": "",
-    "COSMOS_KEY": "",
-    "COSMOS_DATABASE": "",
+    "COSMOS_CONNECTION_STRING": "",
+    "COSMOS_DB_NAME": "",
+    "SB_NAMESPACE": "",
+    "SB_CONNECTION_STRING": "",
+    "CORS_ORIGIN": "http://localhost:8080"
     
-    "SERVICE_BUS_CONNECTION_STRING": ""
   }
 }

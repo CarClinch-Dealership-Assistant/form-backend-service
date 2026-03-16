@@ -30,24 +30,28 @@ from azure.identity import DefaultAzureCredential
 app = func.FunctionApp()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+CORS_ORIGIN = os.getenv("CORS_ORIGIN", "*")
 
 # ============================================
 # COSMOS DB CLIENT
 # ============================================
 
 def get_cosmos_client():
-    endpoint = os.environ.get('COSMOS_ENDPOINT')
-    database_name = os.environ.get('COSMOS_DATABASE', 'CarClinchDB')
+    connection_string = os.getenv("COSMOS_CONNECTION_STRING")
+    database_name = os.getenv("COSMOS_DB_NAME")
 
-    if not endpoint:
-        raise ValueError("COSMOS_ENDPOINT must be set")
+    if not database_name:
+        raise ValueError("COSMOS_DB_NAME must be set")
 
-    credential = DefaultAzureCredential()
-    client = CosmosClient(endpoint, credential=credential)
-    database = client.get_database_client(database_name)
+    if connection_string:
+        client = CosmosClient.from_connection_string(connection_string, connection_verify=False)
+    else:
+        endpoint = os.getenv("COSMOS_ENDPOINT")
+        if not endpoint:
+            raise ValueError("Either COSMOS_CONNECTION_STRING or COSMOS_ENDPOINT must be set")
+        client = CosmosClient(endpoint, credential=DefaultAzureCredential(), connection_verify=False)
 
-    return database
+    return client.get_database_client(database_name)
 
 
 # ============================================
@@ -100,7 +104,7 @@ def create_lead(database, fname, lname, email, phone, notes):
             "email": email.lower(),
             "phone": phone,
             "status": 0,  # 0 = new
-            "notes": notes,
+            "notes": [{"text": notes, "timestamp": datetime.now(timezone.utc).isoformat()}] if notes else [],
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
@@ -113,7 +117,35 @@ def create_lead(database, fname, lname, email, phone, notes):
         logger.error(f"❌ Error creating lead: {str(e)}")
         raise
 
-
+def update_lead(database, lead_id, note):
+    try:
+        container = database.get_container_client('leads')
+        
+        # Read existing lead
+        lead = container.read_item(item=lead_id, partition_key=lead_id)
+        
+        # Update notes array
+        if 'notes' not in lead:
+            lead['notes'] = []
+        note_entry = {
+            "text": note,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        lead['notes'].append(note_entry)
+        
+        # Replace item in container
+        updated_lead = container.replace_item(item=lead_id, body=lead)
+        logger.info(f"✅ Updated lead: {lead_id} with note: {note}")
+        
+        return updated_lead
+        
+    except exceptions.CosmosResourceNotFoundError:
+        logger.warning(f"⚠️ Lead not found for update: {lead_id}")
+        return None
+    except exceptions.CosmosHttpResponseError as e:
+        logger.error(f"❌ Error updating lead: {str(e)}")
+        raise
 def get_vehicle_by_id(database, vehicle_id):
     """
     Query vehicle by ID
@@ -168,7 +200,7 @@ def get_dealership_by_id(database, dealer_id):
         raise
 
 
-def create_conversation(database, lead_id, vehicle_id):
+def create_conversation(database, lead_id, vehicle_id, dealership_id):
     """
     Create a new conversation document
     """
@@ -182,6 +214,7 @@ def create_conversation(database, lead_id, vehicle_id):
             "id": conv_id,
             "leadId": lead_id,
             "vehicleId": vehicle_id,
+            "dealerId": dealership_id,
             "status": 1,  # 1 = active
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
@@ -284,17 +317,19 @@ def validate_lead_data(data):
 
 def publish_to_service_bus(queue_name, message_data):
     try:
+        connection_string = os.environ.get('SB_CONNECTION_STRING')
         namespace = os.environ.get('SB_NAMESPACE')
 
-        if not namespace:
-            logger.warning("⚠️ SB_NAMESPACE not set")
-            return
+        if not connection_string and not namespace:
+            raise ValueError("Either SB_CONNECTION_STRING or SB_NAMESPACE must be set")
 
-        credential = DefaultAzureCredential()
-        servicebus_client = ServiceBusClient(
-            fully_qualified_namespace=namespace,
-            credential=credential
-        )
+        if connection_string:
+            servicebus_client = ServiceBusClient.from_connection_string(connection_string)
+        else:
+            servicebus_client = ServiceBusClient(
+                fully_qualified_namespace=namespace,
+                credential=DefaultAzureCredential()
+            )
 
         with servicebus_client:
             sender = servicebus_client.get_queue_sender(queue_name=queue_name)
@@ -308,7 +343,6 @@ def publish_to_service_bus(queue_name, message_data):
 
     except Exception as e:
         logger.error(f"❌ Failed to publish to Service Bus: {str(e)}")
-
 
 # ============================================
 # MAIN FUNCTION
@@ -353,7 +387,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             status_code=200,
             headers={
-                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Origin': CORS_ORIGIN,
                 'Access-Control-Allow-Methods': 'POST, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type'
             }
@@ -372,7 +406,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
             return func.HttpResponse(
                 body=json.dumps({'success': False, 'error': 'Invalid JSON'}),
                 status_code=400,
-                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
             )
         
         # Validate input
@@ -387,7 +421,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                     'details': errors
                 }),
                 status_code=400,
-                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
             )
         
         # Get Cosmos DB client
@@ -399,9 +433,11 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
         existing_lead = check_lead_by_email(database, sanitized_data['email'])
         
         if existing_lead:
-            # Use existing lead
             lead = existing_lead
-            logger.info(f"📧 Using existing lead: {lead['id']}")
+            if sanitized_data.get('notes'):
+                updated = update_lead(database, lead['id'], sanitized_data['notes'])
+                if updated:
+                    lead = updated
         else:
             # Create new lead
             lead = create_lead(
@@ -426,7 +462,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                     'message': f"Vehicle {sanitized_data['vehicleId']} does not exist"
                 }),
                 status_code=404,
-                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
             )
         
         # ============================================
@@ -440,7 +476,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                     'error': 'Vehicle missing dealerId'
                 }),
                 status_code=500,
-                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
             )
         
         dealership = get_dealership_by_id(database, dealer_id)
@@ -453,13 +489,13 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                     'message': f"Dealership {dealer_id} does not exist"
                 }),
                 status_code=404,
-                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
             )
         
         # ============================================
         # STEP 4: Create conversation
         # ============================================
-        conversation = create_conversation(database, lead['id'], vehicle['id'])
+        conversation = create_conversation(database, lead['id'], vehicle['id'], dealership['id'])
         
         # ============================================
         # STEP 5: Assemble message payload
@@ -472,7 +508,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                 "email": lead['email'],
                 "phone": lead['phone'],
                 "status": lead['status'],
-                "notes": lead.get('notes'),
+                "notes": lead.get('notes', [])[-1]['text'] if lead.get('notes') else "",
                 "timestamp": lead['timestamp']
             },
             "vehicle": {
@@ -529,7 +565,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
             status_code=201,
             headers={
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ORIGIN
             }
         )
         
@@ -549,7 +585,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500,
             headers={
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ORIGIN
             }
         )
 
@@ -583,7 +619,7 @@ def get_vehicles(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             status_code=200,
             headers={
-                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Origin': CORS_ORIGIN,
                 'Access-Control-Allow-Methods': 'GET, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type'
             }
@@ -612,12 +648,12 @@ def get_vehicles(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             body=json.dumps({'success': True, 'vehicles': items}),
             status_code=200,
-            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
         )
     
     except Exception as e:
         return func.HttpResponse(
             body=json.dumps({'success': False, 'error': str(e)}),
             status_code=500,
-            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
         )
