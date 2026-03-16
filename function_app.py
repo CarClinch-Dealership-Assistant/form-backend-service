@@ -30,7 +30,7 @@ from azure.identity import DefaultAzureCredential
 app = func.FunctionApp()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+CORS_ORIGIN = os.getenv("CORS_ORIGIN", "*")
 
 # ============================================
 # COSMOS DB CLIENT
@@ -387,7 +387,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             status_code=200,
             headers={
-                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Origin': CORS_ORIGIN,
                 'Access-Control-Allow-Methods': 'POST, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type'
             }
@@ -406,7 +406,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
             return func.HttpResponse(
                 body=json.dumps({'success': False, 'error': 'Invalid JSON'}),
                 status_code=400,
-                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
             )
         
         # Validate input
@@ -421,7 +421,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                     'details': errors
                 }),
                 status_code=400,
-                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
             )
         
         # Get Cosmos DB client
@@ -462,7 +462,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                     'message': f"Vehicle {sanitized_data['vehicleId']} does not exist"
                 }),
                 status_code=404,
-                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
             )
         
         # ============================================
@@ -476,7 +476,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                     'error': 'Vehicle missing dealerId'
                 }),
                 status_code=500,
-                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
             )
         
         dealership = get_dealership_by_id(database, dealer_id)
@@ -489,7 +489,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
                     'message': f"Dealership {dealer_id} does not exist"
                 }),
                 status_code=404,
-                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+                headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
             )
         
         # ============================================
@@ -565,7 +565,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
             status_code=201,
             headers={
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ORIGIN
             }
         )
         
@@ -585,7 +585,7 @@ def lead_intake(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500,
             headers={
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ORIGIN
             }
         )
 
@@ -619,7 +619,7 @@ def get_vehicles(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             status_code=200,
             headers={
-                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Origin': CORS_ORIGIN,
                 'Access-Control-Allow-Methods': 'GET, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type'
             }
@@ -648,12 +648,12 @@ def get_vehicles(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             body=json.dumps({'success': True, 'vehicles': items}),
             status_code=200,
-            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
         )
     
     except Exception as e:
         return func.HttpResponse(
             body=json.dumps({'success': False, 'error': str(e)}),
             status_code=500,
-            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
+            headers={'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ORIGIN}
         )
