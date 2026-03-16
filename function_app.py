@@ -44,12 +44,12 @@ def get_cosmos_client():
         raise ValueError("COSMOS_DB_NAME must be set")
 
     if connection_string:
-        client = CosmosClient.from_connection_string(connection_string)
+        client = CosmosClient.from_connection_string(connection_string, connection_verify=False)
     else:
         endpoint = os.getenv("COSMOS_ENDPOINT")
         if not endpoint:
             raise ValueError("Either COSMOS_CONNECTION_STRING or COSMOS_ENDPOINT must be set")
-        client = CosmosClient(endpoint, credential=DefaultAzureCredential())
+        client = CosmosClient(endpoint, credential=DefaultAzureCredential(), connection_verify=False)
 
     return client.get_database_client(database_name)
 
