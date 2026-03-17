@@ -6,10 +6,15 @@
         "isEnabled": true,
         "excludedTypes": "Request"
       }
+    },
+    "logLevel": {
+      "Azure.Storage.Blobs": "Error",
+      "Host.Triggers.DurableTask": "Error"
     }
   },
   "extensionBundle": {
     "id": "Microsoft.Azure.Functions.ExtensionBundle",
     "version": "[4.*, 5.0.0)"
   }
+  
 }

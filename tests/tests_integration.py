@@ -3,7 +3,7 @@ import pytest
 import os
 import json
 import uuid
-from function_app import get_cosmos_client, check_lead_by_email, create_lead, get_dealership_by_id, get_vehicle_by_id, create_conversation
+from function_app import get_cosmos_client, check_lead_by_email, create_lead, get_dealership_by_id, get_vehicle_by_id, create_conversation, update_lead
 
 @pytest.fixture(scope="session", autouse=True)
 def load_local_settings():
@@ -86,7 +86,7 @@ def test_full_lead_to_conversation_flow():
     vehicle = get_vehicle_by_id(db, target_vehicle_id)
     assert vehicle is not None, f"Vehicle {target_vehicle_id} must exist for this test."
     
-    conversation = create_conversation(db, new_lead['id'], vehicle['id'])
+    conversation = create_conversation(db, new_lead['id'], vehicle['id'], vehicle.get('dealerId'))
     assert conversation['id'].startswith("conv_")
     
     print(f"\n Created Lead: {new_lead['id']}")
@@ -101,3 +101,17 @@ def test_lead_deduplication():
     
     assert lead is not None, "Pre-requisite: A lead with this email must exist."
     print(f"\nSuccessfully retrieved existing lead ID: {lead['id']}")
+
+def test_update_lead_integration():
+    db = get_cosmos_client()
+    email = f"test_update_{uuid.uuid4().hex}@example.com"
+    
+    lead = create_lead(db, "Update", "Tester", email, "5551234567", "Initial note")
+    assert lead['id'] is not None
+    assert len(lead['notes']) == 1
+    
+    updated_lead = update_lead(db, lead['id'], "Second integration note")
+    
+    assert updated_lead is not None
+    assert len(updated_lead['notes']) == 2
+    assert updated_lead['notes'][1]['text'] == "Second integration note"
