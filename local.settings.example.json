@@ -9,7 +9,8 @@
     "COSMOS_DB_NAME": "",
     "SB_NAMESPACE": "",
     "SB_CONNECTION_STRING": "",
-    "CORS_ORIGIN": "http://localhost:8080"
+    "CORS_ORIGIN": "http://localhost:8080",
+    "COSMOS_VERIFY_SSL": "false"
     
   }
 }

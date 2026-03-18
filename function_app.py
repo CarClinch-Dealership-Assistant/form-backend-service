@@ -30,7 +30,9 @@ from azure.identity import DefaultAzureCredential
 app = func.FunctionApp()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 CORS_ORIGIN = os.getenv("CORS_ORIGIN", "*")
+VERIFY_SSL = os.getenv("COSMOS_VERIFY_SSL", "true").lower() != "false"
 
 # ============================================
 # COSMOS DB CLIENT
@@ -44,12 +46,12 @@ def get_cosmos_client():
         raise ValueError("COSMOS_DB_NAME must be set")
 
     if connection_string:
-        client = CosmosClient.from_connection_string(connection_string, connection_verify=False)
+        client = CosmosClient.from_connection_string(connection_string, connection_verify=VERIFY_SSL)
     else:
         endpoint = os.getenv("COSMOS_ENDPOINT")
         if not endpoint:
             raise ValueError("Either COSMOS_CONNECTION_STRING or COSMOS_ENDPOINT must be set")
-        client = CosmosClient(endpoint, credential=DefaultAzureCredential(), connection_verify=False)
+        client = CosmosClient(endpoint, credential=DefaultAzureCredential(), connection_verify=VERIFY_SSL)
 
     return client.get_database_client(database_name)
 
